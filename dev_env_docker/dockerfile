@@ -1,0 +1,33 @@
+FROM python:3.13-slim
+
+# 安裝 SSH 與常見開發工具
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    openssh-server \
+    sudo \
+    vim \
+    git \
+    && apt-get clean
+
+# 建立 SSH 環境
+RUN mkdir -p /var/run/sshd
+RUN useradd -ms /bin/bash devuser && echo "devuser:devpassword" | chpasswd && adduser devuser sudo
+RUN echo "root:root" | chpasswd
+
+# 啟用 SSH 密碼登入（不建議用於正式部署）
+RUN echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config && \
+    echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
+
+# 開發目錄
+WORKDIR /app
+
+COPY requirements.txt /app
+
+
+# EXPOSE web + ssh port
+EXPOSE 8000 22
+
+# 需要再次安裝套件前先 update
+RUN apt-get update && apt-get install -y curl && apt-get clean
+
+CMD ["/usr/sbin/sshd", "-D"]
