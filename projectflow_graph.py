@@ -10,13 +10,14 @@ import re
 
 from langgraph.graph import END, StateGraph
 from langchain_openai import AzureChatOpenAI
+from langchain_google_vertexai import ChatVertexAI
 from langchain.schema import HumanMessage, AIMessage
 from typing import TypedDict, List, Optional
 
 import prompts
+
 # 新增: 導入模組化背景工具
 import background_tool
-
 
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ if not logging.getLogger().handlers:  # 根 logger 無 handler 時才設定，�
     logging.basicConfig(
         level=os.getenv("LOG_LEVEL", "INFO").upper(),
         format="%(asctime)s | %(levelname)-8s | %(threadName)s | %(name)s | %(message)s",
-        datefmt="%H:%M:%S"
+        datefmt="%H:%M:%S",
     )
 # 個別 logger 層級（可透過環境變數調整）
 logger.setLevel(os.getenv("MODULE_LOG_LEVEL", "INFO").upper())
@@ -33,6 +34,7 @@ logger.setLevel(os.getenv("MODULE_LOG_LEVEL", "INFO").upper())
 # 若需要顯示 langchain / httpx 詳細內容，可自行解除註解
 # logging.getLogger("langchain").setLevel("WARNING")
 # logging.getLogger("httpx").setLevel("WARNING")
+
 
 # --- JSON 解析輔助：容錯處理模型輸出夾雜文字情況 ---
 def extract_first_json_list(text: str):
@@ -56,6 +58,7 @@ def extract_first_json_list(text: str):
             return []
     return []
 
+
 # Define state
 class AgentState(TypedDict):
     messages: List
@@ -70,6 +73,7 @@ class AgentState(TypedDict):
     next_agent: Optional[str]
     stage_number: Optional[int]
 
+
 # Load environment config
 load_dotenv("./.env")
 
@@ -78,16 +82,20 @@ azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
 
 # Init LLM
-llm = AzureChatOpenAI(
-    api_key=azure_api_key,
-    azure_endpoint=azure_endpoint,
-    deployment_name="gpt-4o",
-    api_version="2024-08-01-preview",
-    temperature=0
-)
+if azure_endpoint and azure_api_key:
+    llm = AzureChatOpenAI(
+        api_key=azure_api_key,
+        azure_endpoint=azure_endpoint,
+        deployment_name="gpt-4o",
+        api_version="2024-08-01-preview",
+        temperature=0,
+    )
+else:
+    llm = ChatVertexAI(model_name="gemini-2.5-flash")
 
 # Summary agent
 # 依據新prompt，需傳遞更多欄位，並解析新格式
+
 
 def build_current_progress(stage_number, messages, stage_settings):
     # 取得對應階段資訊
@@ -98,9 +106,7 @@ def build_current_progress(stage_number, messages, stage_settings):
     # 取最近一則對話摘要
     dialog_summary = messages[-1].content if messages else ""
     # 組合評分表格
-    score_rows = "\n".join([
-        f"| {item} | /5 |  |" for item in score_list
-    ])
+    score_rows = "\n".join([f"| {item} | /5 |  |" for item in score_list])
     # 組合 current_progress
     current_progress = f"""
 ## 當前狀態與評分
@@ -117,6 +123,7 @@ def build_current_progress(stage_number, messages, stage_settings):
 """
     return current_progress
 
+
 def summary_agent(state: AgentState) -> AgentState:
     logger.info(f"[summary_agent] state id: {id(state)}")
     logger.info(f"[summary_agent] state: {state}")
@@ -125,16 +132,20 @@ def summary_agent(state: AgentState) -> AgentState:
         project_content=state.get("project_content", ""),
         action_plan=state.get("action_plan", ""),
         historical_log=state.get("historical_log", ""),
-        current_progress=state.get("current_progress", "")
+        current_progress=state.get("current_progress", ""),
     )
     input_tokens = count_tokens(prompt)
     TOKEN_STATS["summary_agent"]["input"] += input_tokens
-    logger.info(f"[summary_agent] 輸入 tokens: {input_tokens}, 累計輸入: {TOKEN_STATS['summary_agent']['input']}")
+    logger.info(
+        f"[summary_agent] 輸入 tokens: {input_tokens}, 累計輸入: {TOKEN_STATS['summary_agent']['input']}"
+    )
     logger.info(f"📝 SummaryAgent 輸入prompt：{prompt}")
     response = llm.invoke([HumanMessage(content=prompt)])
     output_tokens = count_tokens(response.content)
     TOKEN_STATS["summary_agent"]["output"] += output_tokens
-    logger.info(f"[summary_agent] 輸出 tokens: {output_tokens}, 累計輸出: {TOKEN_STATS['summary_agent']['output']}")
+    logger.info(
+        f"[summary_agent] 輸出 tokens: {output_tokens}, 累計輸出: {TOKEN_STATS['summary_agent']['output']}"
+    )
     logger.info(f"result(raw): {response.content}")
     parsed_list = extract_first_json_list(response.content)
     result = parsed_list[0] if parsed_list else {}
@@ -147,7 +158,9 @@ def summary_agent(state: AgentState) -> AgentState:
     if new_stage is None:
         new_stage = prev_stage if prev_stage is not None else 1
     if new_stage != prev_stage or not state.get("current_progress"):
-        state["current_progress"] = build_current_progress(new_stage, state["messages"], stage_settings)
+        state["current_progress"] = build_current_progress(
+            new_stage, state["messages"], stage_settings
+        )
     if result.get("project_content"):
         state["project_content"] = result["project_content"]
     if result.get("ACTION_PLAN"):
@@ -157,8 +170,10 @@ def summary_agent(state: AgentState) -> AgentState:
     state["stage_number"] = new_stage
     return state
 
+
 # Score agent
 # 需傳遞 action_plan, current_progress
+
 
 def score_agent(state: AgentState) -> AgentState:
     logger.info(f"[score_agent] state id: {id(state)}")
@@ -167,30 +182,38 @@ def score_agent(state: AgentState) -> AgentState:
         current_dialog="\n".join([m.content for m in state["messages"][-3:]]),
         project_content=state.get("project_content", ""),
         action_plan=state.get("action_plan", ""),
-        current_progress=state.get("current_progress", "")
+        current_progress=state.get("current_progress", ""),
     )
     # 計算與累計 input token 數量
     input_tokens = count_tokens(prompt)
     TOKEN_STATS["score_agent"]["input"] += input_tokens
-    logger.info(f"[score_agent] 輸入 tokens: {input_tokens}, 累計輸入: {TOKEN_STATS['score_agent']['input']}")
+    logger.info(
+        f"[score_agent] 輸入 tokens: {input_tokens}, 累計輸入: {TOKEN_STATS['score_agent']['input']}"
+    )
     logger.info(f"📝 ScoreAgent 輸入prompt：{prompt}")
     response = llm.invoke([HumanMessage(content=prompt)])
     logger.info(f"result(raw): {response.content}")
     # 計算與累計 output token 數量
     output_tokens = count_tokens(response.content)
     TOKEN_STATS["score_agent"]["output"] += output_tokens
-    logger.info(f"[score_agent] 輸出 tokens: {output_tokens}, 累計輸出: {TOKEN_STATS['score_agent']['output']}")
+    logger.info(
+        f"[score_agent] 輸出 tokens: {output_tokens}, 累計輸出: {TOKEN_STATS['score_agent']['output']}"
+    )
 
     try:
         parsed_list = extract_first_json_list(response.content)
         result = parsed_list[0] if parsed_list else {}
     except Exception:
         result = {}
-    state["current_progress"] = result.get("current_progress", state.get("current_progress", ""))
+    state["current_progress"] = result.get(
+        "current_progress", state.get("current_progress", "")
+    )
     return state
+
 
 # Decision agent
 # 需傳遞更多欄位，並解析 Guidance_and_Strategy
+
 
 def decision_agent(state: AgentState) -> AgentState:
     logger.info(f"[decision_agent] state id: {id(state)}")
@@ -200,7 +223,7 @@ def decision_agent(state: AgentState) -> AgentState:
         project_content=state.get("project_content", ""),
         action_plan=state.get("action_plan", ""),
         historical_log=state.get("historical_log", ""),
-        current_progress=state.get("current_progress", "")
+        current_progress=state.get("current_progress", ""),
     )
     _state_copy = state.copy()
     thread = threading.Thread(target=run_background_graph, args=(_state_copy,))
@@ -208,15 +231,19 @@ def decision_agent(state: AgentState) -> AgentState:
     # 計算與累計 input token 數量
     input_tokens = count_tokens(prompt)
     TOKEN_STATS["decision_agent"]["input"] += input_tokens
-    logger.info(f"[decision_agent] 輸入 tokens: {input_tokens}, 累計輸入: {TOKEN_STATS['decision_agent']['input']}")
+    logger.info(
+        f"[decision_agent] 輸入 tokens: {input_tokens}, 累計輸入: {TOKEN_STATS['decision_agent']['input']}"
+    )
     logger.info(f"📝 DecisionAgent 輸入prompt：{prompt}")
     response = llm.invoke([HumanMessage(content=prompt)])
     logger.info(f"result(raw): {response.content}")
     # 計算與累計 output token 數量
     output_tokens = count_tokens(response.content)
     TOKEN_STATS["decision_agent"]["output"] += output_tokens
-    logger.info(f"[decision_agent] 輸出 tokens: {output_tokens}, 累計輸出: {TOKEN_STATS['decision_agent']['output']}")
-    
+    logger.info(
+        f"[decision_agent] 輸出 tokens: {output_tokens}, 累計輸出: {TOKEN_STATS['decision_agent']['output']}"
+    )
+
     try:
         parsed_list = extract_first_json_list(response.content)
         result = parsed_list[0] if parsed_list else {}
@@ -225,8 +252,10 @@ def decision_agent(state: AgentState) -> AgentState:
     state["guidance_strategy"] = result.get("Guidance_and_Strategy", "")
     return state
 
+
 # PBL response agent
 # 需傳遞 guidance_strategy
+
 
 def response_agent(state: AgentState) -> AgentState:
     logger.info(f"[response_agent] state id: {id(state)}")
@@ -236,26 +265,31 @@ def response_agent(state: AgentState) -> AgentState:
         all_dialogs="\n".join([m.content for m in state["messages"][-10:]]),
         guidance_strategy=state.get("guidance_strategy", ""),
         project_content=state.get("project_content", ""),
-        action_plan=state.get("action_plan", "")
+        action_plan=state.get("action_plan", ""),
     )
     logger.info(f"📝 ResponseAgent 輸入prompt：{prompt}")
-    if '[CURRENT_PROJECT_CONTENT]' in prompt:
+    if "[CURRENT_PROJECT_CONTENT]" in prompt:
         current_project_content = state.get("project_content", "")
         prompt = prompt.replace("[CURRENT_PROJECT_CONTENT]", current_project_content)
     # 計算與累計 input token 數量
     input_tokens = count_tokens(prompt)
     TOKEN_STATS["response_agent"]["input"] += input_tokens
-    logger.info(f"[response_agent] 輸入 tokens: {input_tokens}, 累計輸入: {TOKEN_STATS['response_agent']['input']}")
+    logger.info(
+        f"[response_agent] 輸入 tokens: {input_tokens}, 累計輸入: {TOKEN_STATS['response_agent']['input']}"
+    )
     logger.info(f"📝 ResponseAgent 輸入prompt：{prompt}")
     response = llm.invoke([HumanMessage(content=prompt)])
     # 計算與累計 output token 數量
     output_tokens = count_tokens(response.content)
     TOKEN_STATS["response_agent"]["output"] += output_tokens
-    logger.info(f"[response_agent] 輸出 tokens: {output_tokens}, 累計輸出: {TOKEN_STATS['response_agent']['output']}")
+    logger.info(
+        f"[response_agent] 輸出 tokens: {output_tokens}, 累計輸出: {TOKEN_STATS['response_agent']['output']}"
+    )
     logger.info(f"📝 ResponseAgent 回覆：{response.content}")
     state["messages"].append(AIMessage(content=response.content))
     state["next_agent"] = None
     return state
+
 
 # Workflow definition
 # 主 workflow： decision_agent 和 response_agent
@@ -280,9 +314,10 @@ background_graph = background_graph_builder.compile()
 # 建立 background_tool (模組化) 並設定
 background_tool.setup(background_graph, AIMessage, HumanMessage, logger=logger)
 
+
 def run_background_graph(state):
     logger.info(f"[run_background_graph] state id: {id(state)}")
-    session_id = state.get('session_id')
+    session_id = state.get("session_id")
     for event in background_graph.stream(state):
         if isinstance(event, dict):
             state.update(event)
@@ -290,6 +325,7 @@ def run_background_graph(state):
         with open(f"state_{session_id}.pkl", "wb") as f:
             pickle.dump(state, f)
     logger.info("[Thread] 背景 workflow 狀態已更新，已儲存 state")
+
 
 def run_graph(state):
     logger.info(f"[run_graph] state id: {id(state)}")
@@ -305,28 +341,36 @@ def run_graph(state):
                     ai_reply = msg.content
     return ai_reply
 
+
 # 新增 token 統計與計數函式
 TOKEN_STATS = {
     "summary_agent": {"input": 0, "output": 0},
     "score_agent": {"input": 0, "output": 0},
     "decision_agent": {"input": 0, "output": 0},
-    "response_agent": {"input": 0, "output": 0}
+    "response_agent": {"input": 0, "output": 0},
 }
+
 
 def count_tokens(text: str) -> int:
     try:
         import tiktoken
+
         encoding = tiktoken.get_encoding("cl100k_base")
         return len(encoding.encode(text))
     except ImportError:
-        logger.warning("tiktoken library not installed, falling back to basic token count.")
+        logger.warning(
+            "tiktoken library not installed, falling back to basic token count."
+        )
         return len(text.split())
+
 
 if __name__ == "__main__":
     from sample_buddy_G import HumanMessage, AIMessage
 
     def get_initial_state():
-        initial_message = AIMessage(content="嗨~ 我是你的 SDGs 專案助理。讓我們一起探索世界，了解 SDGs，為我們的地球盡一份心吧！")
+        initial_message = AIMessage(
+            content="嗨~ 我是你的 SDGs 專案助理。讓我們一起探索世界，了解 SDGs，為我們的地球盡一份心吧！"
+        )
         return {
             "messages": [initial_message],
             "next_agent": None,
@@ -336,7 +380,7 @@ if __name__ == "__main__":
             "current_progress": "",
             "guidance_strategy": "",
             "score": None,
-            "next_response": None
+            "next_response": None,
         }
 
     messages = [HumanMessage(content="我想解決社區的剩食問題。")]
@@ -351,7 +395,7 @@ if __name__ == "__main__":
         "guidance_strategy": "",
         "score": None,
         "next_response": None,
-        "session_id": session_id
+        "session_id": session_id,
     }
     for event in main_graph.stream(initial_state):
         for agent_state in event.values():
