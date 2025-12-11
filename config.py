@@ -14,8 +14,8 @@ from typing import Optional
 from dotenv import load_dotenv
 import logging
 
-# 載入環境變數
-load_dotenv("./.env")
+# 載入環境變數 (自動搜尋 .env 檔案)
+load_dotenv()
 
 # === 路徑設定 ===
 PROJECT_ROOT = Path(__file__).parent

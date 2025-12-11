@@ -47,8 +47,9 @@ def extract_first_json_list(text: str) -> List[Dict[str, Any]]:
     except json.JSONDecodeError as e:
         logger.debug(f"直接解析 JSON 失敗: {e}")
     
-    # 使用正則表達式尋找第一組 [ ... ]
-    match = re.search(r"\[[\s\S]*\]", text)
+    # 使用非貪婪的正則表達式尋找第一組 [ ... ]
+    # 使用非貪婪匹配避免跨越多個 JSON 物件
+    match = re.search(r"\[[\s\S]*?\]", text)
     if match:
         snippet = match.group(0)
         try:
@@ -84,6 +85,19 @@ def safe_json_parse(text: str, default: Any = None) -> Any:
 
 # === Token 計數工具 ===
 
+# 嘗試導入 tiktoken，失敗時使用簡單估算
+try:
+    import tiktoken
+    _TIKTOKEN_AVAILABLE = True
+    _ENCODING = tiktoken.get_encoding("cl100k_base")
+except ImportError:
+    _TIKTOKEN_AVAILABLE = False
+    _ENCODING = None
+    logger.warning(
+        "tiktoken 未安裝，將使用簡單估算。建議安裝: pip install tiktoken"
+    )
+
+
 def count_tokens(text: str) -> int:
     """
     計算文字的 token 數量
@@ -96,20 +110,16 @@ def count_tokens(text: str) -> int:
     Returns:
         token 數量
     """
-    try:
-        import tiktoken
-        encoding = tiktoken.get_encoding("cl100k_base")
-        return len(encoding.encode(text))
-    except ImportError:
-        logger.warning(
-            "tiktoken 未安裝，使用簡單估算。建議安裝: pip install tiktoken"
-        )
+    if _TIKTOKEN_AVAILABLE and _ENCODING:
+        try:
+            return len(_ENCODING.encode(text))
+        except Exception as e:
+            logger.error(f"Token 計數失敗: {e}")
+            return len(text.split())
+    else:
         # 簡單估算：中文 1.5 字元/token，英文 4 字元/token
         # 粗略平均約 2 字元/token
         return len(text) // 2
-    except Exception as e:
-        logger.error(f"Token 計數失敗: {e}")
-        return len(text.split())  # 最後退回到單詞計數
 
 
 class TokenStats:

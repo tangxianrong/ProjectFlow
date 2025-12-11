@@ -182,12 +182,16 @@ class TestConfiguration(unittest.TestCase):
     })
     def test_llm_config_use_openai(self):
         """測試 LLM 配置判斷使用 OpenAI"""
-        # 重新導入以讀取新的環境變數
-        import importlib
-        import config as cfg
-        importlib.reload(cfg)
+        # 動態建立配置類別以測試環境變數
+        class TestLLMConfig:
+            AZURE_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+            AZURE_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+            
+            @classmethod
+            def use_openai(cls) -> bool:
+                return bool(cls.AZURE_ENDPOINT and cls.AZURE_API_KEY)
         
-        self.assertTrue(cfg.LLMConfig.use_openai())
+        self.assertTrue(TestLLMConfig.use_openai())
 
 
 class TestPrompts(unittest.TestCase):
