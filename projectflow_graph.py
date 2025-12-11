@@ -11,7 +11,7 @@ import re
 from langgraph.graph import END, StateGraph
 from langchain_openai import ChatOpenAI
 from langchain_google_vertexai import ChatVertexAI
-from langchain.schema import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from typing import TypedDict, List, Optional
 
 import prompts

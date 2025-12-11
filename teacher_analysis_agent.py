@@ -6,7 +6,7 @@ import logging
 import json
 import re
 from typing import Dict, List, Any
-from langchain.schema import HumanMessage
+from langchain_core.messages import HumanMessage
 from models import TeacherAnalysis, GroupProgress
 
 logger = logging.getLogger(__name__)
