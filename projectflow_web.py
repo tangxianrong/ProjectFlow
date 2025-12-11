@@ -162,4 +162,9 @@ with gr.Blocks() as demo:
     upload_file.change(upload_state, [upload_file], [chatbox, user_input, state])
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860, share=False)
+    port = int(os.environ.get("PORT", "7860"))  # Azure 會注入 PORT
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=port,
+        share=False
+    )
