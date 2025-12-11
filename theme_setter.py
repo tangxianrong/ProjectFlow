@@ -18,6 +18,7 @@
 
 from dotenv import load_dotenv
 import os
+import re
 import yaml
 from langchain_openai import ChatOpenAI
 from langchain_google_vertexai import ChatVertexAI
@@ -260,7 +261,6 @@ def replace_prompt_in_content(content, prompt_name, new_prompt):
     search_start = start_idx + len(start_marker)
     
     # 使用正則表達式找到下一個獨立的三引號（前面可能有空白）
-    import re
     end_pattern = r'\n"""'
     match = re.search(end_pattern, content[search_start:])
     

@@ -50,7 +50,9 @@ test_config = {
     'related_sdgs': ['SDG 1', 'SDG 2'],
 }
 
-test_file = os.path.join(tempfile.gettempdir(), 'test_theme_config.yaml')
+# 使用 NamedTemporaryFile 以獲得更好的隔離性和自動清理
+with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False, encoding='utf-8') as tmp:
+    test_file = tmp.name
 try:
     theme_setter.save_theme_config(test_config, test_file)
     
@@ -67,11 +69,17 @@ try:
         else:
             print("✗ 主題設定內容不符")
             sys.exit(1)
+        
+        # 清理測試檔案
+        os.unlink(test_file)
     else:
         print(f"✗ 主題設定檔案未建立")
         sys.exit(1)
 except Exception as e:
     print(f"✗ 儲存主題設定失敗: {e}")
+    # 清理測試檔案（如果存在）
+    if 'test_file' in locals() and os.path.exists(test_file):
+        os.unlink(test_file)
     sys.exit(1)
 
 # 測試 4: 測試 backup_original_prompts 函數
