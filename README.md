@@ -8,6 +8,7 @@ ProjectFlow 是一個為 Project-Based Learning (PBL) 及 Problem-Based Learning
 - 多智能體協作：四個 agent 串聯，分層處理學習問題與進度。
 - 支援 PBL/PrBL 教學法：從問題提出、討論、進度追蹤到策略規劃。
 - 可擴展性：方便教師或研究人員根據需求擴充 agent 功能。
+- **主題客製化**：提供主題設定工具，讓教師可以針對特定課程和專案主題客製化 agent 行為。
 
 ## 啟動方式
 
@@ -21,7 +22,23 @@ ProjectFlow 是一個為 Project-Based Learning (PBL) 及 Problem-Based Learning
 uv sync
 ```
 
-### 3. 啟動主程式
+### 3. (可選) 設定課程主題
+
+在啟動主程式前，教師可以使用主題設定工具來客製化 agent 行為：
+
+```bash
+uv run theme_setter.py
+```
+
+或
+
+```bash
+python theme_setter.py
+```
+
+此工具會引導教師輸入課程資訊和專案要求，然後自動修改四個 agent 的 prompts，使其能夠引導學生在特定的專案主題下完成學習。詳細使用說明請參考 [THEME_SETTER_GUIDE.md](THEME_SETTER_GUIDE.md)。
+
+### 4. 啟動主程式
 
 - 若需啟動 API 伺服器，請執行：
   ```bash
@@ -36,8 +53,10 @@ uv sync
 - `api_server.py`：API 伺服器
 - `projectflow_web.py`：網頁介面
 - `background_tool.py`、`projectflow_graph.py`：輔助模組
+- `theme_setter.py`：主題設定工具（獨立程式）
 - `prompts/`：提示詞與設定
 - `pyproject.toml`、`uv.lock`：依賴套件列表
+- `THEME_SETTER_GUIDE.md`：主題設定工具使用指南
 
 ## 聯絡方式
 如有問題或建議，歡迎聯絡專案維護者。
