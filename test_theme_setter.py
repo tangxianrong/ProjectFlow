@@ -50,10 +50,13 @@ test_config = {
     'related_sdgs': ['SDG 1', 'SDG 2'],
 }
 
-# 使用 NamedTemporaryFile 以獲得更好的隔離性和自動清理
-with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False, encoding='utf-8') as tmp:
-    test_file = tmp.name
+# 使用 mkstemp 獲得臨時檔案
+import tempfile as tmp
+test_fd, test_file = tmp.mkstemp(suffix='.yaml', text=True)
 try:
+    # 先關閉檔案描述符
+    os.close(test_fd)
+    
     theme_setter.save_theme_config(test_config, test_file)
     
     # 驗證檔案是否存在
@@ -68,19 +71,18 @@ try:
             print("✓ 主題設定內容正確")
         else:
             print("✗ 主題設定內容不符")
+            os.unlink(test_file)
             sys.exit(1)
-        
-        # 清理測試檔案
-        os.unlink(test_file)
     else:
         print(f"✗ 主題設定檔案未建立")
         sys.exit(1)
 except Exception as e:
     print(f"✗ 儲存主題設定失敗: {e}")
-    # 清理測試檔案（如果存在）
-    if 'test_file' in locals() and os.path.exists(test_file):
-        os.unlink(test_file)
     sys.exit(1)
+finally:
+    # 清理測試檔案
+    if os.path.exists(test_file):
+        os.unlink(test_file)
 
 # 測試 4: 測試 backup_original_prompts 函數
 print("\n測試 4: 測試備份功能...")

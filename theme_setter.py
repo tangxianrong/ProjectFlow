@@ -242,6 +242,56 @@ def backup_original_prompts():
         logger.info(f"備份檔案已存在：{backup_file}")
 
 
+def load_original_prompts_from_backup():
+    """從備份檔案載入原始 prompts"""
+    backup_file = "prompts/__init__.py.backup"
+    
+    if not os.path.exists(backup_file):
+        # 如果備份不存在，從當前檔案載入
+        import prompts
+        return {
+            "SUMMARY_AGENT_PROMPT": prompts.SUMMARY_AGENT_PROMPT,
+            "SCORE_AGENT_PROMPT": prompts.SCORE_AGENT_PROMPT,
+            "DECISION_AGENT_PROMPT": prompts.DECISION_AGENT_PROMPT,
+            "RESPONSE_AGENT_PROMPT": prompts.RESPONSE_AGENT_PROMPT,
+        }
+    
+    # 從備份檔案讀取
+    with open(backup_file, 'r', encoding='utf-8') as f:
+        backup_content = f.read()
+    
+    # 提取各個 prompt
+    prompts_dict = {}
+    for prompt_name in ["SUMMARY_AGENT_PROMPT", "SCORE_AGENT_PROMPT", 
+                        "DECISION_AGENT_PROMPT", "RESPONSE_AGENT_PROMPT"]:
+        start_marker = f'{prompt_name} = """'
+        start_idx = backup_content.find(start_marker)
+        
+        if start_idx != -1:
+            search_start = start_idx + len(start_marker)
+            end_pattern = r'\n"""'
+            match = re.search(end_pattern, backup_content[search_start:])
+            
+            if match:
+                end_idx = search_start + match.start()
+                prompt_content = backup_content[start_idx + len(start_marker):end_idx].strip()
+                prompts_dict[prompt_name] = prompt_content
+    
+    return prompts_dict
+    """備份原始的 prompts"""
+    backup_file = "prompts/__init__.py.backup"
+    original_file = "prompts/__init__.py"
+    
+    if not os.path.exists(backup_file):
+        with open(original_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        with open(backup_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+        logger.info(f"原始 prompts 已備份到 {backup_file}")
+    else:
+        logger.info(f"備份檔案已存在：{backup_file}")
+
+
 def replace_prompt_in_content(content, prompt_name, new_prompt):
     """
     替換內容中的特定 prompt
@@ -260,15 +310,16 @@ def replace_prompt_in_content(content, prompt_name, new_prompt):
     # 為了避免匹配到內容中的三引號，我們尋找獨立一行的三引號
     search_start = start_idx + len(start_marker)
     
-    # 使用正則表達式找到下一個獨立的三引號（前面可能有空白）
-    end_pattern = r'\n"""'
+    # 使用正則表達式找到下一個獨立的三引號（前面可能有空白，或在行首）
+    # 同時考慮檔案結尾的情況
+    end_pattern = r'(?:\n|^)"""'
     match = re.search(end_pattern, content[search_start:])
     
     if not match:
         logger.warning(f"找不到 {prompt_name} 的結束標記，跳過替換")
         return content
     
-    end_idx = search_start + match.start() + 1  # +1 包含換行符
+    end_idx = search_start + match.start() + 1  # +1 包含換行符（如果有）
     
     # 替換內容
     new_content = (
@@ -330,14 +381,8 @@ def main():
         # 6. 儲存主題設定
         save_theme_config(theme_config)
         
-        # 7. 讀取原始 prompts
-        import prompts
-        original_prompts = {
-            "SUMMARY_AGENT_PROMPT": prompts.SUMMARY_AGENT_PROMPT,
-            "SCORE_AGENT_PROMPT": prompts.SCORE_AGENT_PROMPT,
-            "DECISION_AGENT_PROMPT": prompts.DECISION_AGENT_PROMPT,
-            "RESPONSE_AGENT_PROMPT": prompts.RESPONSE_AGENT_PROMPT,
-        }
+        # 7. 讀取原始 prompts（從備份檔案）
+        original_prompts = load_original_prompts_from_backup()
         
         # 8. 修改各個 agent 的 prompts
         print("\n正在修改 agent prompts...")
