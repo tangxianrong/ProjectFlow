@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # Web 介面服務
+  projectflow-web:
+    build: .
+    container_name: projectflow-web
+    ports:
+      - "7860:7860"
+    environment:
+      # LLM 設定（請在 .env 檔案中設定或透過環境變數傳入）
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-gpt-4o}
+      # Google Vertex AI（可選）
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}
+      # 應用設定
+      - SESSION_DIR=/app/session_data
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MODULE_LOG_LEVEL=${MODULE_LOG_LEVEL:-INFO}
+    volumes:
+      # 持久化 session 資料
+      - ./session_data:/app/session_data
+      - ./groups_data:/app/groups_data
+      # 如果使用 Google Vertex AI，掛載憑證檔案
+      # - /path/to/credentials.json:/app/credentials.json
+    restart: unless-stopped
+    command: uv run projectflow_web.py
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7860\")' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # API 服務
+  projectflow-api:
+    build: .
+    container_name: projectflow-api
+    ports:
+      - "8000:8000"
+    environment:
+      # LLM 設定
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-gpt-4o}
+      # Google Vertex AI（可選）
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}
+      # 應用設定
+      - SESSION_DIR=/app/session_data
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MODULE_LOG_LEVEL=${MODULE_LOG_LEVEL:-INFO}
+    volumes:
+      # 共享 session 資料（與 Web 介面共用）
+      - ./session_data:/app/session_data
+      - ./groups_data:/app/groups_data
+      # 如果使用 Google Vertex AI，掛載憑證檔案
+      # - /path/to/credentials.json:/app/credentials.json
+    restart: unless-stopped
+    command: uv run uvicorn api_server:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/docs\")' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# 可選：使用 Docker 網路分隔服務
+networks:
+  default:
+    name: projectflow-network

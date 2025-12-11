@@ -19,6 +19,9 @@ import prompts
 # 新增: 導入模組化背景工具
 import background_tool
 
+# 導入工具函式
+from utils import clean_llm_response
+
 
 logger = logging.getLogger(__name__)
 # === Logging 設定，確保在直接執行時能輸出到 Terminal ===
@@ -295,7 +298,12 @@ def response_agent(state: AgentState) -> AgentState:
         f"[response_agent] 輸出 tokens: {output_tokens}, 累計輸出: {TOKEN_STATS['response_agent']['output']}"
     )
     logger.info(f"📝 ResponseAgent 回覆：{response.content}")
-    state["messages"].append(AIMessage(content=response.content))
+    
+    # 清理 LLM 回應中的內部推理標記
+    cleaned_response = clean_llm_response(response.content)
+    logger.info(f"📝 ResponseAgent 清理後回覆：{cleaned_response}")
+    
+    state["messages"].append(AIMessage(content=cleaned_response))
     state["next_agent"] = None
     return state
 

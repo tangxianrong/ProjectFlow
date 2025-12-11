@@ -24,7 +24,8 @@ from utils import (
     validate_state,
     merge_states,
     truncate_text,
-    clean_whitespace
+    clean_whitespace,
+    clean_llm_response
 )
 
 
@@ -161,6 +162,45 @@ class TestTextProcessing(unittest.TestCase):
         result = clean_whitespace(text)
         expected = "第一行\n第二行\n第三行"
         self.assertEqual(result, expected)
+    
+    def test_clean_llm_response_with_markers(self):
+        """測試清理包含內部推理標記的 LLM 回應"""
+        text = """analysisWe need to think about this...
+        Let's analyze the situation.
+        assistantfinal這是實際的回應內容"""
+        result = clean_llm_response(text)
+        # 應該移除 analysis 和 assistantfinal 之間的內容
+        self.assertNotIn("analysis", result.lower())
+        self.assertNotIn("assistantfinal", result.lower())
+        self.assertIn("這是實際的回應內容", result)
+    
+    def test_clean_llm_response_normal(self):
+        """測試清理正常的 LLM 回應（無標記）"""
+        text = "這是正常的回應，沒有任何標記"
+        result = clean_llm_response(text)
+        self.assertEqual(result, text)
+    
+    def test_clean_llm_response_issue_example(self):
+        """測試清理實際問題案例"""
+        text = """analysisWe need to generate a response as BuddyG...
+Ok.assistantfinal現在我們正處於「問題探索」的階段，一起找出你最關心的永續議題吧！
+
+嗨，你好 👋"""
+        result = clean_llm_response(text)
+        # 確保內部推理被移除
+        self.assertNotIn("analysisWe", result)
+        self.assertNotIn("BuddyG", result)
+        # 確保實際內容保留
+        self.assertIn("現在我們正處於「問題探索」的階段", result)
+        self.assertIn("嗨，你好 👋", result)
+    
+    def test_clean_llm_response_preserve_legitimate_analysis(self):
+        """測試保留正常文字中的 analysis 詞彙"""
+        text = "我們需要做數據分析（analysis）來解決這個問題"
+        result = clean_llm_response(text)
+        # 確保正常內容中的 analysis 不被移除
+        self.assertIn("analysis", result.lower())
+        self.assertEqual(result, text)
 
 
 class TestConfiguration(unittest.TestCase):
