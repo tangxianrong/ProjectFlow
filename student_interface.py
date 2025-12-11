@@ -53,6 +53,9 @@ def get_initial_state(group_id: str):
     # 更新組別的 session_id
     group_manager.update_group_session(group_id, session_id)
     
+    # 重新取得更新後的 group (避免重複呼叫)
+    group = group_manager.get_group(group_id)
+    
     initial_message = AIMessage(
         content=f"嗨！{group.group_name}的同學們好！我是你的 SDGs 專案助理——專門協助你規劃與推動永續發展目標專案。讓我們攜手為世界帶來正向改變！請問你在工作或生活中有沒有碰到讓你關心的問題呢，或已經有具體的專案構想呢？\n\n"
     )

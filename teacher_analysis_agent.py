@@ -3,6 +3,8 @@
 協助教師分析各組學生的學習狀況並提供介入建議
 """
 import logging
+import json
+import re
 from typing import Dict, List, Any
 from langchain.schema import HumanMessage
 from models import TeacherAnalysis, GroupProgress
@@ -74,6 +76,45 @@ class TeacherAnalysisAgent:
         """
         self.llm = llm
     
+    def _extract_json_from_response(self, text: str) -> Dict[str, Any]:
+        """
+        從 LLM 回應中提取 JSON，使用更健壯的方法
+        
+        Args:
+            text: LLM 回應文本
+            
+        Returns:
+            解析後的字典，如果失敗則返回預設結果
+        """
+        # 先嘗試直接解析整個回應
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+        
+        # 嘗試找到最外層的 JSON 物件
+        # 從第一個 { 到最後一個 } 
+        start_idx = text.find('{')
+        end_idx = text.rfind('}')
+        
+        if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
+            json_str = text[start_idx:end_idx + 1]
+            try:
+                result = json.loads(json_str)
+                # 驗證必要欄位存在
+                if isinstance(result, dict) and ("difficulties" in result or "suggestions" in result):
+                    return result
+            except json.JSONDecodeError:
+                logger.warning(f"[TeacherAnalysisAgent] JSON 解析失敗: {json_str[:100]}...")
+        
+        # 如果所有方法都失敗，返回預設結果
+        logger.warning("[TeacherAnalysisAgent] 無法解析 JSON，使用預設結果")
+        return {
+            "difficulties": ["分析資料不足，建議與學生進行更多對話"],
+            "suggestions": ["持續關注學生的探索過程"],
+            "analysis_summary": "目前資料不足，需要更多對話紀錄才能進行深入分析。"
+        }
+    
     def analyze_group(self, progress: GroupProgress) -> TeacherAnalysis:
         """
         分析單一組別的學習狀況
@@ -101,21 +142,8 @@ class TeacherAnalysisAgent:
             response = self.llm.invoke([HumanMessage(content=prompt)])
             logger.info(f"[TeacherAnalysisAgent] LLM 回應: {response.content}")
             
-            # 解析回應
-            import json
-            import re
-            
-            # 嘗試提取 JSON
-            json_match = re.search(r'\{[\s\S]*\}', response.content)
-            if json_match:
-                result = json.loads(json_match.group(0))
-            else:
-                # 如果無法解析，返回預設結果
-                result = {
-                    "difficulties": ["分析資料不足，建議與學生進行更多對話"],
-                    "suggestions": ["持續關注學生的探索過程"],
-                    "analysis_summary": "目前資料不足，需要更多對話紀錄才能進行深入分析。"
-                }
+            # 解析回應 - 使用更安全的 JSON 提取方法
+            result = self._extract_json_from_response(response.content)
             
             return TeacherAnalysis(
                 group_id=progress.group_id,

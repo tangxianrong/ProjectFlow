@@ -34,7 +34,11 @@ app = FastAPI(title="ProjectFlow Agent API", version="2.0.0")
 
 @app.post("/background_update")
 def background_update(req: BackgroundUpdateRequest):
-    """背景更新工具 - 支援組別"""
+    """背景更新工具 - 支援組別
+    
+    Note: group_id 用於前端識別，實際處理使用 session_id
+    各組的 session 資料已在 projectflow_graph 中根據 group_id 獨立儲存
+    """
     # if x_api_key != API_KEY:
     #     raise HTTPException(status_code=401, detail="Unauthorized")
     return background_tool.background_update_tool(
