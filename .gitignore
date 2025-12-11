@@ -2,7 +2,13 @@ __pycache__
 .env
 .vscode/
 session_data/
+<<<<<<< HEAD
 groups_data/
 *.pkl
 *.pyc
 
+=======
+*.pkl
+prompts/__init__.py.backup
+prompts/theme_config.yaml
+>>>>>>> dev2
