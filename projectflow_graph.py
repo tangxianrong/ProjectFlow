@@ -9,7 +9,7 @@ import logging
 import re
 
 from langgraph.graph import END, StateGraph
-from langchain_openai import AzureChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain_google_vertexai import ChatVertexAI
 from langchain.schema import HumanMessage, AIMessage
 from typing import TypedDict, List, Optional
@@ -77,18 +77,26 @@ class AgentState(TypedDict):
 # Load environment config
 load_dotenv("./.env")
 
-# Set Azure OpenAI API
+# Set Azure OpenAI API (支援地端部署的 OpenAI 模型)
 azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
 
 # Init LLM
 if azure_endpoint and azure_api_key:
-    llm = AzureChatOpenAI(
+    # 地端 OpenAI 模型使用 ChatOpenAI
+    # 確保 endpoint 有 /v1 路徑
+    endpoint = azure_endpoint
+    if not endpoint.endswith("/v1"):
+        endpoint = endpoint.rstrip("/") + "/v1"
+    
+    llm = ChatOpenAI(
+        model=deployment_name,
+        base_url=endpoint,
         api_key=azure_api_key,
-        azure_endpoint=azure_endpoint,
-        deployment_name="gpt-4o",
-        api_version="2024-08-01-preview",
         temperature=0,
+        timeout=60,
+        max_retries=2
     )
 else:
     llm = ChatVertexAI(model_name="gemini-2.5-flash")

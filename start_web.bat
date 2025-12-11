@@ -1,0 +1,3 @@
+@echo off
+echo 正在啟動 ProjectFlow Web 介面...
+uv run projectflow_web.py

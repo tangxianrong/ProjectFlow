@@ -1,0 +1,3 @@
+@echo off
+echo 正在啟動 ProjectFlow API 伺服器...
+uv run api_server.py
