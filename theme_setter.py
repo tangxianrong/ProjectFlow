@@ -295,19 +295,20 @@ def replace_prompt_in_content(content, prompt_name, new_prompt):
         return content
     
     # 從開始位置之後找結束的三引號
-    # 為了避免匹配到內容中的三引號，我們尋找獨立一行的三引號
+    # 尋找獨立一行的三引號（前面只有空白）
     search_start = start_idx + len(start_marker)
     
-    # 使用正則表達式找到下一個獨立的三引號（前面可能有空白，或在行首）
-    # 同時考慮檔案結尾的情況
-    end_pattern = r'(?:\n|^)"""'
+    # 使用正則表達式找到下一個獨立的三引號
+    # 匹配前面有換行符的三引號
+    end_pattern = r'\n"""'
     match = re.search(end_pattern, content[search_start:])
     
     if not match:
         logger.warning(f"找不到 {prompt_name} 的結束標記，跳過替換")
         return content
     
-    end_idx = search_start + match.start() + 1  # +1 包含換行符（如果有）
+    # match.start() 是換行符的位置，match.end() 是三引號之後的位置
+    end_idx = search_start + match.start() + 1  # 包含換行符
     
     # 替換內容
     new_content = (
