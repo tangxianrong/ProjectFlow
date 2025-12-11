@@ -162,9 +162,11 @@ with gr.Blocks() as demo:
     upload_file.change(upload_state, [upload_file], [chatbox, user_input, state])
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "7860"))  # Azure 會注入 PORT
+    # Azure Web App 會設定 WEBSITES_PORT，本地開發使用 7860
+    port = int(os.environ.get("WEBSITES_PORT", os.environ.get("PORT", "7860")))
     demo.launch(
         server_name="0.0.0.0",
         server_port=port,
-        share=False
+        share=False,
+        show_error=os.environ.get("ENV", "development") == "development"  # 生產環境隱藏錯誤
     )
