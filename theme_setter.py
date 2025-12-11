@@ -218,6 +218,9 @@ def modify_agent_prompt(agent_name, original_prompt, theme_config):
 
 def save_theme_config(theme_config, filename="prompts/theme_config.yaml"):
     """儲存主題設定到檔案"""
+    # 確保目錄存在
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    
     with open(filename, 'w', encoding='utf-8') as f:
         yaml.dump(theme_config, f, allow_unicode=True, sort_keys=False)
     logger.info(f"主題設定已儲存到 {filename}")
@@ -238,6 +241,45 @@ def backup_original_prompts():
         logger.info(f"備份檔案已存在：{backup_file}")
 
 
+def replace_prompt_in_content(content, prompt_name, new_prompt):
+    """
+    替換內容中的特定 prompt
+    
+    使用更安全的替換邏輯，避免匹配到 prompt 內容中的三引號
+    """
+    start_marker = f'{prompt_name} = """'
+    
+    # 找到開始位置
+    start_idx = content.find(start_marker)
+    if start_idx == -1:
+        logger.warning(f"找不到 {prompt_name}，跳過替換")
+        return content
+    
+    # 從開始位置之後找結束的三引號
+    # 為了避免匹配到內容中的三引號，我們尋找獨立一行的三引號
+    search_start = start_idx + len(start_marker)
+    
+    # 使用正則表達式找到下一個獨立的三引號（前面可能有空白）
+    import re
+    end_pattern = r'\n"""'
+    match = re.search(end_pattern, content[search_start:])
+    
+    if not match:
+        logger.warning(f"找不到 {prompt_name} 的結束標記，跳過替換")
+        return content
+    
+    end_idx = search_start + match.start() + 1  # +1 包含換行符
+    
+    # 替換內容
+    new_content = (
+        content[:start_idx + len(start_marker)] + 
+        "\n" + new_prompt + "\n" + 
+        content[end_idx:]
+    )
+    
+    return new_content
+
+
 def update_prompts_file(modified_prompts):
     """更新 prompts/__init__.py 檔案"""
     # 讀取原始檔案
@@ -246,66 +288,7 @@ def update_prompts_file(modified_prompts):
     
     # 替換各個 prompt
     for prompt_name, new_prompt in modified_prompts.items():
-        # 找到 prompt 定義的位置並替換
-        if prompt_name == "SUMMARY_AGENT_PROMPT":
-            # 處理 SUMMARY_AGENT_PROMPT
-            start_marker = 'SUMMARY_AGENT_PROMPT = """'
-            end_marker = '"""'
-            
-            # 找到開始和結束位置
-            start_idx = content.find(start_marker)
-            if start_idx != -1:
-                # 從開始位置之後找第二個 """
-                temp_idx = start_idx + len(start_marker)
-                end_idx = content.find('"""', temp_idx)
-                
-                if end_idx != -1:
-                    # 替換內容
-                    content = (content[:start_idx + len(start_marker)] + 
-                             "\n" + new_prompt + "\n" + 
-                             content[end_idx:])
-        
-        elif prompt_name == "SCORE_AGENT_PROMPT":
-            start_marker = 'SCORE_AGENT_PROMPT = """'
-            end_marker = '"""'
-            
-            start_idx = content.find(start_marker)
-            if start_idx != -1:
-                temp_idx = start_idx + len(start_marker)
-                end_idx = content.find('"""', temp_idx)
-                
-                if end_idx != -1:
-                    content = (content[:start_idx + len(start_marker)] + 
-                             "\n" + new_prompt + "\n" + 
-                             content[end_idx:])
-        
-        elif prompt_name == "DECISION_AGENT_PROMPT":
-            start_marker = 'DECISION_AGENT_PROMPT = """'
-            end_marker = '"""'
-            
-            start_idx = content.find(start_marker)
-            if start_idx != -1:
-                temp_idx = start_idx + len(start_marker)
-                end_idx = content.find('"""', temp_idx)
-                
-                if end_idx != -1:
-                    content = (content[:start_idx + len(start_marker)] + 
-                             "\n" + new_prompt + "\n" + 
-                             content[end_idx:])
-        
-        elif prompt_name == "RESPONSE_AGENT_PROMPT":
-            start_marker = 'RESPONSE_AGENT_PROMPT = """'
-            end_marker = '"""'
-            
-            start_idx = content.find(start_marker)
-            if start_idx != -1:
-                temp_idx = start_idx + len(start_marker)
-                end_idx = content.find('"""', temp_idx)
-                
-                if end_idx != -1:
-                    content = (content[:start_idx + len(start_marker)] + 
-                             "\n" + new_prompt + "\n" + 
-                             content[end_idx:])
+        content = replace_prompt_in_content(content, prompt_name, new_prompt)
     
     # 寫回檔案
     with open("prompts/__init__.py", 'w', encoding='utf-8') as f:

@@ -7,6 +7,7 @@
 import os
 import sys
 import yaml
+import tempfile
 
 # 測試 1: 匯入模組
 print("測試 1: 匯入 theme_setter 模組...")
@@ -49,7 +50,7 @@ test_config = {
     'related_sdgs': ['SDG 1', 'SDG 2'],
 }
 
-test_file = '/tmp/test_theme_config.yaml'
+test_file = os.path.join(tempfile.gettempdir(), 'test_theme_config.yaml')
 try:
     theme_setter.save_theme_config(test_config, test_file)
     
