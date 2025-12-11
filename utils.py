@@ -105,13 +105,14 @@ def clean_llm_response(text: str) -> str:
         >>> clean_llm_response("嗨！這是回應")
         '嗨！這是回應'
     """
-    # 移除 "analysis" 到 "assistantfinal" 之間的內容
-    # 使用非貪婪匹配避免誤刪
-    cleaned = re.sub(r'analysis.*?assistantfinal', '', text, flags=re.IGNORECASE | re.DOTALL)
+    # 移除 "analysis" 到 "assistantfinal" 之間的內容（包含標記本身）
+    # 使用非貪婪匹配，只在開頭或前面有空白時匹配，避免誤刪正常文字
+    cleaned = re.sub(r'(?:^|\s)analysis.*?assistantfinal\s*', '', text, flags=re.IGNORECASE | re.DOTALL)
     
-    # 如果還有單獨的 "analysis" 或 "assistantfinal" 標記，也移除
-    cleaned = re.sub(r'^analysis.*?(?=\n|$)', '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
-    cleaned = re.sub(r'^assistantfinal', '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+    # 清理可能殘留在行首的單獨標記（更嚴格的匹配）
+    # 只匹配行首緊接著的標記，確保是內部標記而非正常內容
+    cleaned = re.sub(r'^analysis(?:[:\s]|We\s|The\s)', '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+    cleaned = re.sub(r'^assistantfinal(?:[:\s])', '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
     
     # 移除開頭和結尾的空白
     cleaned = cleaned.strip()

@@ -37,10 +37,6 @@ ENV SESSION_DIR=/app/session_data \
 # 8000: FastAPI 服務
 EXPOSE 7860 8000
 
-# 健康檢查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:7860/ || exit 1
-
 # 預設啟動 Web 介面
 # 可以透過 docker run 命令覆寫來啟動不同服務
 CMD ["uv", "run", "projectflow_web.py"]

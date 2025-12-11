@@ -193,6 +193,14 @@ Ok.assistantfinal現在我們正處於「問題探索」的階段，一起找出
         # 確保實際內容保留
         self.assertIn("現在我們正處於「問題探索」的階段", result)
         self.assertIn("嗨，你好 👋", result)
+    
+    def test_clean_llm_response_preserve_legitimate_analysis(self):
+        """測試保留正常文字中的 analysis 詞彙"""
+        text = "我們需要做數據分析（analysis）來解決這個問題"
+        result = clean_llm_response(text)
+        # 確保正常內容中的 analysis 不被移除
+        self.assertIn("analysis", result.lower())
+        self.assertEqual(result, text)
 
 
 class TestConfiguration(unittest.TestCase):
