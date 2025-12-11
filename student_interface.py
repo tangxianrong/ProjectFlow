@@ -27,7 +27,11 @@ def _get_group_state_path(group_id: str) -> str:
     """取得組別的狀態檔案路徑"""
     group_dir = os.path.join(GROUPS_DIR, group_id)
     os.makedirs(group_dir, exist_ok=True)
-    session_id = get_group_manager().get_group(group_id).session_id if get_group_manager().get_group(group_id) else None
+    
+    manager = get_group_manager()
+    group = manager.get_group(group_id)
+    session_id = group.session_id if group else None
+    
     if session_id:
         return os.path.join(group_dir, f"state_{session_id}.pkl")
     return os.path.join(group_dir, "state.pkl")
@@ -52,9 +56,7 @@ def get_initial_state(group_id: str):
     
     # 更新組別的 session_id
     group_manager.update_group_session(group_id, session_id)
-    
-    # 重新取得更新後的 group (避免重複呼叫)
-    group = group_manager.get_group(group_id)
+    # update_group_session 會更新內部的 groups 字典，不需要重新查詢
     
     initial_message = AIMessage(
         content=f"嗨！{group.group_name}的同學們好！我是你的 SDGs 專案助理——專門協助你規劃與推動永續發展目標專案。讓我們攜手為世界帶來正向改變！請問你在工作或生活中有沒有碰到讓你關心的問題呢，或已經有具體的專案構想呢？\n\n"

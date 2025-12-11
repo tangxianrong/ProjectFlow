@@ -3,8 +3,13 @@
 支援多組學生與教師介面的資料結構
 """
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
+
+
+def _utc_now():
+    """返回 UTC 時區的當前時間"""
+    return datetime.now(timezone.utc)
 
 
 class Group(BaseModel):
@@ -12,7 +17,7 @@ class Group(BaseModel):
     group_id: str = Field(..., description="組別唯一識別碼")
     group_name: str = Field(..., description="組別名稱")
     students: List[str] = Field(default_factory=list, description="學生名單")
-    created_at: datetime = Field(default_factory=datetime.now, description="建立時間")
+    created_at: datetime = Field(default_factory=_utc_now, description="建立時間")
     session_id: Optional[str] = Field(None, description="當前對話 session ID")
 
 
@@ -24,7 +29,7 @@ class GroupProgress(BaseModel):
     project_content: str = Field(default="", description="專案內容")
     action_plan: str = Field(default="", description="行動計畫")
     current_progress: str = Field(default="", description="當前進度與評分")
-    last_updated: datetime = Field(default_factory=datetime.now, description="最後更新時間")
+    last_updated: datetime = Field(default_factory=_utc_now, description="最後更新時間")
     message_count: int = Field(default=0, description="對話訊息數")
 
 
@@ -34,4 +39,4 @@ class TeacherAnalysis(BaseModel):
     difficulties: List[str] = Field(default_factory=list, description="識別的困難點")
     suggestions: List[str] = Field(default_factory=list, description="介入建議")
     analysis_summary: str = Field(default="", description="分析摘要")
-    generated_at: datetime = Field(default_factory=datetime.now, description="分析時間")
+    generated_at: datetime = Field(default_factory=_utc_now, description="分析時間")

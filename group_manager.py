@@ -6,7 +6,7 @@ import os
 import json
 import pickle
 from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from models import Group, GroupProgress
 import logging
 
@@ -109,7 +109,7 @@ class GroupManager:
                     project_content=state.get("project_content", ""),
                     action_plan=state.get("action_plan", ""),
                     current_progress=state.get("current_progress", ""),
-                    last_updated=datetime.now(),
+                    last_updated=datetime.now(timezone.utc),
                     message_count=len(state.get("messages", []))
                 )
             except Exception as e:
