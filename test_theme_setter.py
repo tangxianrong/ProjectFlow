@@ -51,8 +51,7 @@ test_config = {
 }
 
 # 使用 mkstemp 獲得臨時檔案
-import tempfile as tmp
-test_fd, test_file = tmp.mkstemp(suffix='.yaml', text=True)
+test_fd, test_file = tempfile.mkstemp(suffix='.yaml', text=True)
 try:
     # 先關閉檔案描述符
     os.close(test_fd)

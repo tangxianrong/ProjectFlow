@@ -278,18 +278,6 @@ def load_original_prompts_from_backup():
                 prompts_dict[prompt_name] = prompt_content
     
     return prompts_dict
-    """備份原始的 prompts"""
-    backup_file = "prompts/__init__.py.backup"
-    original_file = "prompts/__init__.py"
-    
-    if not os.path.exists(backup_file):
-        with open(original_file, 'r', encoding='utf-8') as f:
-            content = f.read()
-        with open(backup_file, 'w', encoding='utf-8') as f:
-            f.write(content)
-        logger.info(f"原始 prompts 已備份到 {backup_file}")
-    else:
-        logger.info(f"備份檔案已存在：{backup_file}")
 
 
 def replace_prompt_in_content(content, prompt_name, new_prompt):
