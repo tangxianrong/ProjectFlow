@@ -142,5 +142,24 @@ groups_data/
 4. 在「AI 分析建議」取得介入建議
 5. 在「組別管理」建立新組別
 
+## 文件
+
+- [使用指南](USAGE_GUIDE.md) - 詳細的使用說明與常見問題
+- [API 示範](demo_api_usage.py) - API 使用範例程式
+
+## 範例
+
+### 快速開始示範
+
+執行 API 示範程式：
+
+```bash
+# 先啟動 API 伺服器
+uv run api_server.py
+
+# 在另一個終端執行示範
+python3 demo_api_usage.py
+```
+
 ## 聯絡方式
 如有問題或建議，歡迎聯絡專案維護者。
