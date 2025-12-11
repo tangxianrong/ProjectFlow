@@ -17,12 +17,12 @@ RUN apt-get update && apt-get install -y \
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.cargo/bin:$PATH"
 
-# 複製專案檔案
+# 複製依賴檔案並安裝（利用 Docker layer caching）
 COPY pyproject.toml uv.lock ./
-COPY . .
-
-# 安裝 Python 依賴
 RUN uv sync --frozen
+
+# 複製專案檔案
+COPY . .
 
 # 建立資料目錄
 RUN mkdir -p session_data groups_data

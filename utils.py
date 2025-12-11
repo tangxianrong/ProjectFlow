@@ -92,6 +92,8 @@ def clean_llm_response(text: str) -> str:
     某些 LLM（如 Gemini）可能在輸出中包含思考過程的標記，
     例如 "analysis..." 或 "assistantfinal..."，這些應該被移除。
     
+    此函式專門處理常見的 LLM 思考標記模式，同時避免移除正常內容。
+    
     Args:
         text: LLM 的原始回應
         
@@ -99,20 +101,20 @@ def clean_llm_response(text: str) -> str:
         清理後的回應文字
         
     Examples:
-        >>> clean_llm_response("analysisThinking...assistantfinal嗨！")
+        >>> clean_llm_response("analysisWe need...assistantfinal嗨！")
         '嗨！'
         
-        >>> clean_llm_response("嗨！這是回應")
-        '嗨！這是回應'
+        >>> clean_llm_response("我需要做 data analysis")
+        '我需要做 data analysis'
     """
-    # 移除 "analysis" 到 "assistantfinal" 之間的內容（包含標記本身）
-    # 使用非貪婪匹配，只在開頭或前面有空白時匹配，避免誤刪正常文字
-    cleaned = re.sub(r'(?:^|\s)analysis.*?assistantfinal\s*', '', text, flags=re.IGNORECASE | re.DOTALL)
+    # 主要清理模式：從文字開頭的 "analysis" 開始，到 "assistantfinal" 結束的內容
+    # 這是最常見的 LLM 內部推理標記模式
+    # 只匹配從文字最開頭開始的模式，避免誤刪中間的正常內容
+    cleaned = re.sub(r'^\s*analysis.*?assistantfinal\s*', '', text, flags=re.IGNORECASE | re.DOTALL)
     
-    # 清理可能殘留在行首的單獨標記（更嚴格的匹配）
-    # 只匹配行首緊接著的標記，確保是內部標記而非正常內容
-    cleaned = re.sub(r'^analysis(?:[:\s]|We\s|The\s)', '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
-    cleaned = re.sub(r'^assistantfinal(?:[:\s])', '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+    # 清理殘留的單獨標記（只在行首）
+    # assistantfinal 後面可能還有空白或冒號
+    cleaned = re.sub(r'^\s*assistantfinal\s*', '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
     
     # 移除開頭和結尾的空白
     cleaned = cleaned.strip()
