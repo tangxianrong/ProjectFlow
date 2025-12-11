@@ -1,0 +1,3 @@
+@echo off
+echo Starting Teacher Interface...
+uv run teacher_interface.py

@@ -72,6 +72,7 @@ class AgentState(TypedDict):
     session_id: str
     next_agent: Optional[str]
     stage_number: Optional[int]
+    group_id: Optional[str]  # 新增組別 ID 支援
 
 
 # Load environment config
@@ -326,12 +327,26 @@ background_tool.setup(background_graph, AIMessage, HumanMessage, logger=logger)
 def run_background_graph(state):
     logger.info(f"[run_background_graph] state id: {id(state)}")
     session_id = state.get("session_id")
+    group_id = state.get("group_id")
+    
     for event in background_graph.stream(state):
         if isinstance(event, dict):
             state.update(event)
+    
     if session_id:
-        with open(f"state_{session_id}.pkl", "wb") as f:
+        # 如果有 group_id，儲存到組別目錄
+        if group_id:
+            import os
+            group_dir = os.path.join(os.getenv("GROUPS_DIR", "groups_data"), group_id)
+            os.makedirs(group_dir, exist_ok=True)
+            state_path = os.path.join(group_dir, f"state_{session_id}.pkl")
+        else:
+            # 否則儲存到預設目錄
+            state_path = f"state_{session_id}.pkl"
+        
+        with open(state_path, "wb") as f:
             pickle.dump(state, f)
+    
     logger.info("[Thread] 背景 workflow 狀態已更新，已儲存 state")
 
 

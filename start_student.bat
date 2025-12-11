@@ -1,0 +1,3 @@
+@echo off
+echo Starting Student Interface...
+uv run student_interface.py
