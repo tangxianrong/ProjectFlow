@@ -83,6 +83,42 @@ def safe_json_parse(text: str, default: Any = None) -> Any:
         return default
 
 
+# === 文字清理工具 ===
+
+def clean_llm_response(text: str) -> str:
+    """
+    清理 LLM 回應中的內部推理標記
+    
+    某些 LLM（如 Gemini）可能在輸出中包含思考過程的標記，
+    例如 "analysis..." 或 "assistantfinal..."，這些應該被移除。
+    
+    Args:
+        text: LLM 的原始回應
+        
+    Returns:
+        清理後的回應文字
+        
+    Examples:
+        >>> clean_llm_response("analysisThinking...assistantfinal嗨！")
+        '嗨！'
+        
+        >>> clean_llm_response("嗨！這是回應")
+        '嗨！這是回應'
+    """
+    # 移除 "analysis" 到 "assistantfinal" 之間的內容
+    # 使用非貪婪匹配避免誤刪
+    cleaned = re.sub(r'analysis.*?assistantfinal', '', text, flags=re.IGNORECASE | re.DOTALL)
+    
+    # 如果還有單獨的 "analysis" 或 "assistantfinal" 標記，也移除
+    cleaned = re.sub(r'^analysis.*?(?=\n|$)', '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+    cleaned = re.sub(r'^assistantfinal', '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+    
+    # 移除開頭和結尾的空白
+    cleaned = cleaned.strip()
+    
+    return cleaned
+
+
 # === Token 計數工具 ===
 
 # 嘗試導入 tiktoken，失敗時使用簡單估算
