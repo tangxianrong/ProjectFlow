@@ -9,7 +9,7 @@ import logging
 import re
 
 from langgraph.graph import END, StateGraph
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, AzureChatOpenAI
 from langchain_google_vertexai import ChatVertexAI
 from langchain_core.messages import HumanMessage, AIMessage
 from typing import TypedDict, List, Optional
@@ -81,14 +81,36 @@ class AgentState(TypedDict):
 # Load environment config
 load_dotenv("./.env")
 
-# Set Azure OpenAI API (支援地端部署的 OpenAI 模型)
+# Set LLM Provider (透過 .env 決定使用哪個提供者)
+llm_provider = os.getenv("LLM_PROVIDER", "openai").lower()  # azure, openai, vertexai
 azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
 deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
 
-# Init LLM
-if azure_endpoint and azure_api_key:
-    # 地端 OpenAI 模型使用 ChatOpenAI
+# Init LLM based on provider
+if llm_provider == "azure":
+    # Azure OpenAI 官方服務
+    logger.info(f"使用 Azure OpenAI 官方服務: {azure_endpoint}")
+    if not azure_endpoint or not azure_api_key:
+        raise ValueError("使用 Azure OpenAI 需要設定 AZURE_OPENAI_ENDPOINT 和 AZURE_OPENAI_API_KEY")
+    
+    llm = AzureChatOpenAI(
+        azure_deployment=deployment_name,
+        azure_endpoint=azure_endpoint,
+        api_key=azure_api_key,
+        api_version=azure_api_version,
+        temperature=0,
+        timeout=60,
+        max_retries=2
+    )
+
+elif llm_provider == "openai":
+    # 本地 OpenAI 相容 API (ngrok, vLLM, Ollama, etc.)
+    logger.info(f"使用 OpenAI 相容 API: {azure_endpoint}")
+    if not azure_endpoint or not azure_api_key:
+        raise ValueError("使用 OpenAI API 需要設定 AZURE_OPENAI_ENDPOINT 和 AZURE_OPENAI_API_KEY")
+    
     # 確保 endpoint 有 /v1 路徑
     endpoint = azure_endpoint
     if not endpoint.endswith("/v1"):
@@ -102,8 +124,15 @@ if azure_endpoint and azure_api_key:
         timeout=60,
         max_retries=2
     )
+
+elif llm_provider == "vertexai":
+    # Google Vertex AI
+    vertex_model = os.getenv("VERTEX_AI_MODEL", "gemini-2.5-flash")
+    logger.info(f"使用 Google Vertex AI: {vertex_model}")
+    llm = ChatVertexAI(model_name=vertex_model)
+
 else:
-    llm = ChatVertexAI(model_name="gemini-2.5-flash")
+    raise ValueError(f"不支援的 LLM_PROVIDER: {llm_provider}，請使用 azure、openai 或 vertexai")
 
 # Summary agent
 # 依據新prompt，需傳遞更多欄位，並解析新格式
@@ -309,21 +338,21 @@ def response_agent(state: AgentState) -> AgentState:
 
 
 # Workflow definition
-# 主 workflow： decision_agent 和 response_agent
+# 主 workflow： 只有 decision_agent（立即回傳給使用者）
 main_graph_builder = StateGraph(AgentState)
 main_graph_builder.add_node("decision_agent", decision_agent)
-main_graph_builder.add_node("response_agent", response_agent)
 main_graph_builder.set_entry_point("decision_agent")
-main_graph_builder.add_edge("decision_agent", "response_agent")
 
 main_graph = main_graph_builder.compile()
 
-# 背景 workflow：summary/score agent
+# 背景 workflow：response_agent → summary_agent → score_agent
 background_graph_builder = StateGraph(AgentState)
+background_graph_builder.add_node("response_agent", response_agent)
 background_graph_builder.add_node("summary_agent", summary_agent)
 background_graph_builder.add_node("score_agent", score_agent)
 
-background_graph_builder.set_entry_point("summary_agent")
+background_graph_builder.set_entry_point("response_agent")
+background_graph_builder.add_edge("response_agent", "summary_agent")
 background_graph_builder.add_edge("summary_agent", "score_agent")
 
 background_graph = background_graph_builder.compile()
@@ -337,6 +366,7 @@ def run_background_graph(state):
     session_id = state.get("session_id")
     group_id = state.get("group_id")
     
+    # 執行背景 workflow (response_agent → summary_agent → score_agent)
     for event in background_graph.stream(state):
         if isinstance(event, dict):
             state.update(event)
@@ -350,18 +380,22 @@ def run_background_graph(state):
             state_path = os.path.join(group_dir, f"state_{session_id}.pkl")
         else:
             # 否則儲存到預設目錄
-            state_path = f"state_{session_id}.pkl"
+            import os
+            session_dir = os.getenv("SESSION_DIR", "session_data")
+            os.makedirs(session_dir, exist_ok=True)
+            state_path = os.path.join(session_dir, f"state_{session_id}.pkl")
         
         with open(state_path, "wb") as f:
             pickle.dump(state, f)
     
-    logger.info("[Thread] 背景 workflow 狀態已更新，已儲存 state")
+    logger.info("[Thread] 背景 workflow (response_agent → summary_agent → score_agent) 執行完成，已儲存 state")
 
 
 def run_graph(state):
     logger.info(f"[run_graph] state id: {id(state)}")
     logger.info(f"[run_graph] state: {state}")
 
+    # 執行 decision_agent 並立即取得回應
     ai_reply = ""
     for event in main_graph.stream(state):
         if isinstance(event, dict):
@@ -370,6 +404,10 @@ def run_graph(state):
             for msg in event["messages"]:
                 if hasattr(msg, "type") and msg.type == "ai":
                     ai_reply = msg.content
+    
+    # 啟動背景任務執行 response_agent → summary_agent → score_agent
+    background_tool.run_async(state.copy())
+    
     return ai_reply
 
 

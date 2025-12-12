@@ -2,6 +2,7 @@ import os
 import pickle
 import json
 import logging
+import threading
 from typing import Any, Dict, List, Optional
 
 # 這個模組將 background_update_tool 模組化，並提供給 GPTs / LangChain 的工具介面
@@ -198,3 +199,48 @@ def list_available_tools():
     if BACKGROUND_UPDATE_STRUCTURED_TOOL:
         tools.append(BACKGROUND_UPDATE_STRUCTURED_TOOL)
     return tools
+
+# ----------------- 非同步執行背景 Graph -----------------
+
+def run_async(state: Dict[str, Any]):
+    """在背景執行 background_graph，完成後儲存 state。"""
+    def _run_in_thread():
+        try:
+            _logger.info(f"[run_async] 開始執行背景 workflow，session_id: {state.get('session_id')}")
+            session_id = state.get("session_id")
+            group_id = state.get("group_id")
+            
+            # 執行背景 graph
+            for event in _background_graph.stream(state):
+                if isinstance(event, dict):
+                    for node_name, node_state in event.items():
+                        if isinstance(node_state, dict):
+                            # 合併到 root
+                            for k, v in node_state.items():
+                                state[k] = v
+                            # 保留 node 結構
+                            state[node_name] = node_state
+            
+            # 攤平結構
+            _flatten_graph_state(state)
+            
+            # 儲存 state
+            if session_id:
+                if group_id:
+                    group_dir = os.path.join(os.getenv("GROUPS_DIR", "groups_data"), group_id)
+                    os.makedirs(group_dir, exist_ok=True)
+                    state_path = os.path.join(group_dir, f"state_{session_id}.pkl")
+                else:
+                    state_path = _state_path(session_id)
+                
+                with open(state_path, "wb") as f:
+                    pickle.dump(state, f)
+                
+                _logger.info(f"[run_async] 背景 workflow 完成，已儲存 state 到 {state_path}")
+        except Exception as e:
+            _logger.error(f"[run_async] 背景 workflow 執行失敗: {e}", exc_info=True)
+    
+    # 在新的 thread 中執行
+    thread = threading.Thread(target=_run_in_thread, daemon=True)
+    thread.start()
+    _logger.info("[run_async] 背景 thread 已啟動")
